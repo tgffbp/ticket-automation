@@ -1,0 +1,27 @@
+# Ticket Automation System - Dependencies
+# Python 3.10+ required
+
+# HTTP client
+httpx>=0.27.0
+
+# Data validation
+pydantic>=2.5.0
+
+# YAML parsing for Service Catalog
+PyYAML>=6.0.1
+
+# Excel generation
+openpyxl>=3.1.2
+
+# OpenAI API client (supports structured output)
+openai>=1.40.0
+
+# Retry logic for API calls
+tenacity>=8.2.3
+
+# Environment variables management
+python-dotenv>=1.0.0
+
+# CLI interface
+click>=8.1.7
+
