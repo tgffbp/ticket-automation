@@ -45,10 +45,12 @@ def sort_requests(requests: list[HelpdeskRequest]) -> list[HelpdeskRequest]:
     """
     Sort requests hierarchically by category, type, and description.
     
-    Sorting order (all ascending):
+    Sorting order (all ascending, standard ASCII/lexicographic):
     1. request_category
     2. request_type
     3. short_description
+    
+    Note: Uses standard ascending sort (case-sensitive) as per task requirements.
     
     Args:
         requests: List of requests to sort.
@@ -59,9 +61,9 @@ def sort_requests(requests: list[HelpdeskRequest]) -> list[HelpdeskRequest]:
     return sorted(
         requests,
         key=lambda r: (
-            r.request_category.lower(),
-            r.request_type.lower(),
-            r.short_description.lower(),
+            r.request_category,
+            r.request_type,
+            r.short_description,
         )
     )
 

@@ -247,7 +247,9 @@ class ServiceCatalogClient:
             return ServiceCatalog(categories=[])
         
         categories = []
-        for cat_data in categories_data:
+        seen_category_names: set[str] = set()
+        
+        for idx, cat_data in enumerate(categories_data):
             try:
                 if not isinstance(cat_data, dict):
                     continue
@@ -272,8 +274,20 @@ class ServiceCatalogClient:
                         logger.warning(f"Skipping malformed request entry: {e}")
                         continue
                 
+                # Ensure unique category names to prevent dictionary key collisions
+                cat_name = str(cat_data.get("name", "")).strip()
+                if not cat_name:
+                    cat_name = f"Unknown Category {idx + 1}"
+                    logger.warning(f"Category at index {idx} has no name, assigned: '{cat_name}'")
+                elif cat_name in seen_category_names:
+                    original_name = cat_name
+                    cat_name = f"{cat_name} ({idx + 1})"
+                    logger.warning(f"Duplicate category name '{original_name}', renamed to: '{cat_name}'")
+                
+                seen_category_names.add(cat_name)
+                
                 categories.append(ServiceCategory(
-                    name=str(cat_data.get("name", "Unknown")),
+                    name=cat_name,
                     requests=requests,
                 ))
             except Exception as e:

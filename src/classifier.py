@@ -83,13 +83,26 @@ Your task is to analyze each helpdesk ticket and assign it to the most appropria
    - Employee lifecycle → HR & Onboarding
    - Cannot determine → Other/Uncategorized
 
-4. **Confidence Scoring**:
+4. **Software & Licensing - Important Distinctions**:
+   - SaaS apps errors/outages (Jira, Salesforce, Zoom, Slack, etc.) → "SaaS Platform Access"
+   - Need to install software (VS Code, Docker, Python) → "Software Installation Issue"
+   - Need a license (Adobe, Tableau, Office) → "Request New Software License"
+   - Other software problems → "Other Software Issue"
+
+5. **Hardware Support - Important Distinctions**:
+   - Peripherals (mouse, keyboard, monitor, cables, headset) → "Peripheral Request (Mouse/Keyboard/Monitor)"
+   - Laptop/desktop issues (won't turn on, slow, broken screen) → "Laptop Repair/Replacement"
+   - Printer issues (offline, paper jam, can't print) → "Other Hardware Request"
+   - Mobile device issues → "Mobile Device Issue"
+   - Other hardware → "Other Hardware Request"
+
+6. **Confidence Scoring**:
    - 0.9-1.0: Perfect match, no ambiguity
    - 0.7-0.9: Good match, minor interpretation needed
    - 0.5-0.7: Reasonable guess, multiple categories possible
    - <0.5: Uncertain, using best effort
 
-5. **Reasoning**: Always explain WHY you chose this classification in 1-2 sentences.
+7. **Reasoning**: Always explain WHY you chose this classification in 1-2 sentences.
 
 ## EXAMPLES:
 
@@ -113,6 +126,34 @@ Example 3:
 - Type: "General Inquiry/Undefined"
 - Confidence: 0.90
 - Reasoning: "Non-IT request, not related to technical support services."
+
+Example 4:
+- Input: "Jira is down. I am getting a 500 error when loading Jira."
+- Category: "Software & Licensing"
+- Type: "SaaS Platform Access (Jira/Salesforce)"
+- Confidence: 0.95
+- Reasoning: "Jira is a SaaS platform, and user reports access/error issues, not installation."
+
+Example 5:
+- Input: "Need to install VS Code on my machine"
+- Category: "Software & Licensing"
+- Type: "Software Installation Issue"
+- Confidence: 0.95
+- Reasoning: "User explicitly requests software installation, not SaaS access."
+
+Example 6:
+- Input: "Need new monitor"
+- Category: "Hardware Support"
+- Type: "Peripheral Request (Mouse/Keyboard/Monitor)"
+- Confidence: 0.95
+- Reasoning: "Monitor is a peripheral device, matching the specific peripheral request type."
+
+Example 7:
+- Input: "The printer on the 3rd floor is offline"
+- Category: "Hardware Support"
+- Type: "Other Hardware Request"
+- Confidence: 0.90
+- Reasoning: "Printer is hardware equipment. No specific printer category, so Other Hardware Request."
 
 Now classify the ticket provided in the user message using the Service Catalog listed there."""
 
@@ -179,11 +220,19 @@ class TicketClassifier:
         self._catalog = catalog
         
         # Build lookup caches for fuzzy matching
+        # Note: Category names should be unique (enforced by data_sources.py)
         self._category_names = [cat.name for cat in catalog.categories]
-        self._type_names_by_category = {
-            cat.name: [req.name for req in cat.requests]
-            for cat in catalog.categories
-        }
+        self._type_names_by_category: dict[str, list[str]] = {}
+        
+        for cat in catalog.categories:
+            if cat.name in self._type_names_by_category:
+                # Merge request types if somehow duplicate category exists
+                self._type_names_by_category[cat.name].extend(
+                    req.name for req in cat.requests
+                )
+                logger.warning(f"Duplicate category '{cat.name}' detected, merging request types")
+            else:
+                self._type_names_by_category[cat.name] = [req.name for req in cat.requests]
         
         # Initialize OpenAI client
         client_kwargs = {

@@ -117,7 +117,7 @@ python -m src.main --validate-only
 2025-12-05 15:32:00 | INFO | Step 3: Generating Excel report
 2025-12-05 15:32:01 | INFO | Report generated: output/classified_tickets_report.xlsx
 2025-12-05 15:32:01 | INFO | Step 4: Sending report via email
-2025-12-05 15:32:03 | INFO | Email sent to: wordlessframes@gmail.com
+2025-12-05 15:32:03 | INFO | Email sent to: infosec@taxdome.com
 2025-12-05 15:32:03 | INFO | ============================================================
 2025-12-05 15:32:03 | INFO | Pipeline completed successfully!
 2025-12-05 15:32:03 | INFO | ============================================================

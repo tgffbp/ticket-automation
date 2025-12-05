@@ -106,11 +106,11 @@ class EmailConfig:
         default_factory=lambda: os.getenv("FROM_NAME", "Ticket Automation System")
     )
     
-    # Recipient for the report
+    # Recipient for the report (as specified in the task)
     recipient_email: str = field(
         default_factory=lambda: os.getenv(
             "RECIPIENT_EMAIL", 
-            "wordlessframes@gmail.com"
+            "infosec@taxdome.com"
         )
     )
     
