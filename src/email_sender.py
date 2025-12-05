@@ -157,8 +157,9 @@ Source Code Repository:
 
 This report was generated automatically by the Ticket Automation System.
 
-Best regards,
+--
 Ticket Automation System
+Automated IT Helpdesk Classification Pipeline
 """
 
 

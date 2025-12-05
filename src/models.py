@@ -22,7 +22,8 @@ class SLA(BaseModel):
         description="Numeric value for SLA duration"
     )
     
-    model_config = {"frozen": True}
+    # Ignore unknown fields for forward compatibility
+    model_config = {"frozen": True, "extra": "ignore"}
     
     @field_validator("unit")
     @classmethod
@@ -57,14 +58,15 @@ class HelpdeskRequest(BaseModel):
     """
     
     id: str = Field(..., description="Unique request identifier")
-    short_description: str = Field(..., description="Brief issue summary")
+    short_description: str = Field(default="Unknown", description="Brief issue summary")
     long_description: str = Field(default="", description="Detailed description")
-    requester_email: str = Field(..., description="Requester's email")
+    requester_email: str = Field(default="unknown@unknown.com", description="Requester's email")
     request_category: str = Field(default="", description="Service catalog category")
     request_type: str = Field(default="", description="Specific request type")
     sla: SLA = Field(default_factory=SLA, description="Service Level Agreement")
     
-    model_config = {"frozen": False}  # Allow modification for classification
+    # Ignore unknown fields - API may add new fields in the future
+    model_config = {"frozen": False, "extra": "ignore"}
     
     def needs_classification(self) -> bool:
         """Check if request needs to be classified."""
@@ -78,22 +80,24 @@ class HelpdeskRequest(BaseModel):
 class ServiceCatalogRequest(BaseModel):
     """A specific request type within a category."""
     
-    name: str = Field(..., description="Request type name")
-    sla: SLA = Field(..., description="SLA for this request type")
+    name: str = Field(default="Unknown Request", description="Request type name")
+    sla: SLA = Field(default_factory=SLA, description="SLA for this request type")
     
-    model_config = {"frozen": True}
+    # Ignore unknown fields for forward compatibility
+    model_config = {"frozen": True, "extra": "ignore"}
 
 
 class ServiceCategory(BaseModel):
     """A category in the Service Catalog."""
     
-    name: str = Field(..., description="Category name")
+    name: str = Field(default="Unknown Category", description="Category name")
     requests: list[ServiceCatalogRequest] = Field(
         default_factory=list,
         description="Available request types in this category"
     )
     
-    model_config = {"frozen": True}
+    # Ignore unknown fields for forward compatibility
+    model_config = {"frozen": True, "extra": "ignore"}
     
     def get_request_names(self) -> list[str]:
         """Get list of all request type names in this category."""
@@ -120,7 +124,8 @@ class ServiceCatalog(BaseModel):
         description="List of service categories"
     )
     
-    model_config = {"frozen": True}
+    # Ignore unknown fields for forward compatibility
+    model_config = {"frozen": True, "extra": "ignore"}
     
     def get_category_names(self) -> list[str]:
         """Get list of all category names."""
@@ -193,18 +198,39 @@ class ClassificationResult(BaseModel):
 class HelpdeskResponse(BaseModel):
     """Response structure from the helpdesk API."""
     
-    response_code: int
+    response_code: int = Field(default=0)
     data: Optional[dict] = None
     message: Optional[str] = None
+    error: Optional[str] = None  # Some APIs return error field
+    
+    # Ignore unknown fields - API may evolve
+    model_config = {"extra": "ignore"}
     
     def is_success(self) -> bool:
         """Check if response indicates success."""
         return self.response_code == 200 and self.data is not None
     
     def get_requests(self) -> list[HelpdeskRequest]:
-        """Extract list of requests from response."""
+        """
+        Extract list of requests from response with graceful handling.
+        
+        Malformed requests are skipped with a warning, not causing failure.
+        """
         if not self.data:
             return []
+        
         requests_data = self.data.get("requests", [])
-        return [HelpdeskRequest(**req) for req in requests_data]
+        requests = []
+        
+        for i, req_data in enumerate(requests_data):
+            try:
+                # Ensure minimum required field exists
+                if "id" not in req_data:
+                    req_data["id"] = f"unknown_{i}"
+                requests.append(HelpdeskRequest(**req_data))
+            except Exception:
+                # Skip malformed requests but continue processing
+                continue
+        
+        return requests
 

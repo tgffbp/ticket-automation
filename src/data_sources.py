@@ -114,6 +114,10 @@ class HelpdeskClient:
             requests = helpdesk_response.get_requests()
             logger.info(f"Successfully fetched {len(requests)} helpdesk requests")
             
+            # Log request IDs for audit trail
+            request_ids = [r.id for r in requests]
+            logger.debug(f"Request IDs: {request_ids}")
+            
             return requests
             
         except httpx.HTTPStatusError as e:
@@ -203,6 +207,11 @@ class ServiceCatalogClient:
         """
         Parse YAML content into ServiceCatalog model.
         
+        Implements graceful handling of:
+        - Missing fields (uses defaults)
+        - Changed YAML structure (tries multiple paths)
+        - Malformed entries (skips with warning)
+        
         Args:
             content: Raw YAML string from the service catalog endpoint.
             
@@ -211,32 +220,73 @@ class ServiceCatalogClient:
         """
         data = yaml.safe_load(content)
         
-        # Navigate to categories list
-        # Structure: service_catalog.catalog.categories
-        categories_data = (
-            data.get("service_catalog", {})
-            .get("catalog", {})
-            .get("categories", [])
-        )
+        if not data:
+            logger.warning("Empty service catalog received, using empty catalog")
+            return ServiceCatalog(categories=[])
+        
+        # Try multiple possible paths for forward compatibility
+        categories_data = None
+        possible_paths = [
+            lambda d: d.get("service_catalog", {}).get("catalog", {}).get("categories", []),
+            lambda d: d.get("catalog", {}).get("categories", []),
+            lambda d: d.get("categories", []),
+            lambda d: d if isinstance(d, list) else [],
+        ]
+        
+        for path_fn in possible_paths:
+            try:
+                result = path_fn(data)
+                if result:
+                    categories_data = result
+                    break
+            except (AttributeError, TypeError):
+                continue
+        
+        if not categories_data:
+            logger.warning("Could not find categories in catalog, using empty catalog")
+            return ServiceCatalog(categories=[])
         
         categories = []
         for cat_data in categories_data:
-            requests = []
-            for req_data in cat_data.get("requests", []):
-                sla_data = req_data.get("sla", {})
-                sla = SLA(
-                    unit=sla_data.get("unit", ""),
-                    value=sla_data.get("value", 0),
-                )
-                requests.append(ServiceCatalogRequest(
-                    name=req_data.get("name", ""),
-                    sla=sla,
+            try:
+                if not isinstance(cat_data, dict):
+                    continue
+                    
+                requests = []
+                for req_data in cat_data.get("requests", []):
+                    try:
+                        if not isinstance(req_data, dict):
+                            continue
+                        sla_data = req_data.get("sla", {})
+                        if not isinstance(sla_data, dict):
+                            sla_data = {}
+                        sla = SLA(
+                            unit=str(sla_data.get("unit", "")),
+                            value=int(sla_data.get("value", 0)),
+                        )
+                        requests.append(ServiceCatalogRequest(
+                            name=str(req_data.get("name", "Unknown")),
+                            sla=sla,
+                        ))
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Skipping malformed request entry: {e}")
+                        continue
+                
+                categories.append(ServiceCategory(
+                    name=str(cat_data.get("name", "Unknown")),
+                    requests=requests,
                 ))
-            
-            categories.append(ServiceCategory(
-                name=cat_data.get("name", ""),
-                requests=requests,
-            ))
+            except Exception as e:
+                logger.warning(f"Skipping malformed category entry: {e}")
+                continue
+        
+        # Log catalog summary for audit trail
+        total_types = sum(len(cat.requests) for cat in categories)
+        category_names = [cat.name for cat in categories]
+        logger.info(
+            f"Parsed catalog: {len(categories)} categories, {total_types} request types"
+        )
+        logger.debug(f"Categories: {category_names}")
         
         return ServiceCatalog(categories=categories)
 

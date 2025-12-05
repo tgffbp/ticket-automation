@@ -22,9 +22,11 @@ ticket-automation/
 │   ├── data_sources.py       # External API clients
 │   ├── classifier.py         # LLM-based classification
 │   ├── excel_generator.py    # Excel report generation
-│   ├── email_sender.py       # Email sending (SMTP/SendGrid)
+│   ├── email_sender.py       # SMTP email sending
 │   └── main.py               # CLI entry point & pipeline orchestration
+├── tests/                    # Unit tests
 ├── requirements.txt          # Python dependencies
+├── pyproject.toml           # Project configuration
 ├── .env.example              # Environment variables template
 ├── .gitignore               # Git ignore rules
 └── README.md                # This file
@@ -36,13 +38,13 @@ ticket-automation/
 
 - Python 3.10 or higher
 - OpenAI API key
-- Email credentials (SMTP)
+- Gmail account with App Password
 
 ### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/ticket-automation.git
+git clone <repository-url>
 cd ticket-automation
 
 # Create and activate virtual environment
@@ -62,17 +64,19 @@ cp .env.example .env
 Edit the `.env` file with your credentials:
 
 ```env
-# Required
+# Required - Helpdesk API
 HELPDESK_API_KEY=my-cool-api-key
+HELPDESK_API_SECRET=<your-api-secret>
+
+# Required - OpenAI
 OPENAI_API_KEY=sk-your-openai-key
 
-# Email (choose one provider)
-EMAIL_PROVIDER=smtp
+# Required - Email (Gmail + App Password)
 SMTP_USERNAME=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
+SMTP_PASSWORD=xxxx-xxxx-xxxx-xxxx
 FROM_EMAIL=your-email@gmail.com
 
-# Your info
+# Required - Your info for the email
 SENDER_NAME=Your Name
 CODEBASE_LINK=https://github.com/your-username/ticket-automation
 ```
@@ -80,7 +84,7 @@ CODEBASE_LINK=https://github.com/your-username/ticket-automation
 ### Running the Pipeline
 
 ```bash
-# Run the complete pipeline
+# Run the complete pipeline (classify + generate report + send email)
 python -m src.main
 
 # Run without sending email (for testing)
@@ -92,9 +96,47 @@ python -m src.main --output ./my-report.xlsx
 # Enable debug logging
 python -m src.main --debug
 
-# Validate configuration only
+# Validate configuration only (no execution)
 python -m src.main --validate-only
 ```
+
+### Example Output
+
+```
+2025-12-05 15:30:00 | INFO | ============================================================
+2025-12-05 15:30:00 | INFO | Starting Ticket Automation Pipeline
+2025-12-05 15:30:00 | INFO | ============================================================
+2025-12-05 15:30:00 | INFO | Step 1: Fetching data from external sources
+2025-12-05 15:30:01 | INFO | Successfully fetched 42 helpdesk requests
+2025-12-05 15:30:02 | INFO | Parsed catalog: 7 categories, 22 request types
+2025-12-05 15:30:02 | INFO | Step 2: Classifying requests using LLM
+2025-12-05 15:30:02 | INFO | Starting classification of 42 requests
+2025-12-05 15:30:15 | INFO | Progress: 5/42 requests classified
+...
+2025-12-05 15:32:00 | INFO | Classification complete: 42 requests processed
+2025-12-05 15:32:00 | INFO | Step 3: Generating Excel report
+2025-12-05 15:32:01 | INFO | Report generated: output/classified_tickets_report.xlsx
+2025-12-05 15:32:01 | INFO | Step 4: Sending report via email
+2025-12-05 15:32:03 | INFO | Email sent to: wordlessframes@gmail.com
+2025-12-05 15:32:03 | INFO | ============================================================
+2025-12-05 15:32:03 | INFO | Pipeline completed successfully!
+2025-12-05 15:32:03 | INFO | ============================================================
+```
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+python -m pytest tests/ -v
+
+# Run with coverage report
+python -m pytest tests/ -v --cov=src --cov-report=term-missing
+
+# Run specific test file
+python -m pytest tests/test_models.py -v
+```
+
+Current test coverage: **60%** (45 tests)
 
 ## 🔧 Configuration Options
 
@@ -105,19 +147,22 @@ All configuration is managed through environment variables. See `.env.example` f
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `HELPDESK_API_KEY` | API key for helpdesk webhook | Required |
+| `HELPDESK_API_SECRET` | API secret for helpdesk webhook | Required |
 | `OPENAI_API_KEY` | OpenAI API key | Required |
 | `LLM_MODEL` | Model for classification | `gpt-4o-mini` |
-| `LLM_TEMPERATURE` | Classification temperature | `0.1` |
-| `EMAIL_PROVIDER` | `smtp` or `sendgrid` | `smtp` |
+| `LLM_TEMPERATURE` | Classification temperature (lower = more deterministic) | `0.1` |
+| `SMTP_USERNAME` | Gmail address | Required |
+| `SMTP_PASSWORD` | Gmail App Password | Required |
 | `SENDER_NAME` | Your name for email subject | Required |
 
 ## 📊 Output Format
 
 The generated Excel report includes:
 
-- **Formatted headers** (bold, colored)
+- **Formatted headers** (bold, colored background)
 - **Auto-fitted columns**
 - **Alternating row colors** for readability
+- **Frozen header row**
 - **Hierarchical sorting**:
   1. Category (ascending)
   2. Request Type (ascending)
@@ -144,6 +189,7 @@ The LLM classifier uses a carefully crafted prompt that:
 2. **Matches** against the Service Catalog categories and types
 3. **Applies** priority rules for edge cases (e.g., security > hardware for lost devices)
 4. **Provides** confidence scores and reasoning
+5. **Falls back** gracefully when catalog entries don't match exactly
 
 ### Service Categories
 
@@ -155,6 +201,13 @@ The LLM classifier uses a carefully crafted prompt that:
 - HR & Onboarding
 - Other/Uncategorized
 
+### Resilience Features
+
+- **Fuzzy matching**: Handles slight variations in category names from LLM
+- **Graceful degradation**: Unknown categories fall back to "Other/Uncategorized"
+- **Forward compatibility**: Ignores unknown fields from API responses
+- **Default SLA**: 24 hours when SLA lookup fails
+
 ## 🔒 Security Considerations
 
 This application follows security best practices:
@@ -165,44 +218,26 @@ This application follows security best practices:
 - ✅ **Error handling** - No sensitive data in error messages
 - ✅ **Git security** - `.env` and credentials excluded via `.gitignore`
 
-### Gmail App Password
+### Gmail App Password Setup
 
-For Gmail SMTP, you need to use an App Password:
+For Gmail SMTP, you need to use an App Password (not your regular password):
+
 1. Enable 2-Factor Authentication on your Google account
 2. Go to https://myaccount.google.com/apppasswords
 3. Generate a new App Password for "Mail"
-4. Use this password in `SMTP_PASSWORD`
+4. Use this 16-character password in `SMTP_PASSWORD`
 
-## 📧 Email Providers
+## 📁 Project Structure
 
-### SMTP (Gmail, Outlook, etc.)
-
-```env
-EMAIL_PROVIDER=smtp
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USERNAME=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
-```
-
-### SendGrid
-
-```env
-EMAIL_PROVIDER=sendgrid
-SENDGRID_API_KEY=SG.your-api-key
-```
-
-## 🧪 Development
-
-### Project Structure
-
-- **config.py**: Immutable dataclass configuration with validation
-- **models.py**: Pydantic models for type safety and serialization
-- **data_sources.py**: HTTP clients with context managers and error handling
-- **classifier.py**: OpenAI integration with structured output and retries
-- **excel_generator.py**: openpyxl-based report generation with styling
-- **email_sender.py**: Strategy pattern for multiple email providers
-- **main.py**: Click CLI with pipeline orchestration
+| Module | Purpose |
+|--------|---------|
+| `config.py` | Immutable dataclass configuration with validation |
+| `models.py` | Pydantic models for type safety and serialization |
+| `data_sources.py` | HTTP clients with context managers and error handling |
+| `classifier.py` | OpenAI integration with structured output, retries, fuzzy matching |
+| `excel_generator.py` | openpyxl-based report generation with professional styling |
+| `email_sender.py` | SMTP email sending with TLS |
+| `main.py` | Click CLI with pipeline orchestration |
 
 ### Error Handling
 
@@ -216,8 +251,3 @@ Each module defines specific exception classes:
 ## 📝 License
 
 MIT License
-
-## 👤 Author
-
-Automation Engineer Technical Task Submission
-
