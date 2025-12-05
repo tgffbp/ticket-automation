@@ -23,10 +23,7 @@ class APIConfig:
     
     # Helpdesk API configuration
     helpdesk_webhook_url: str = field(
-        default_factory=lambda: os.getenv(
-            "HELPDESK_WEBHOOK_URL",
-            "https://hooks.anler.tech/webhook/159e348a-173b-4c56-91ab-74dd89b4eef3"
-        )
+        default_factory=lambda: os.getenv("HELPDESK_WEBHOOK_URL", "")
     )
     helpdesk_api_key: str = field(
         default_factory=lambda: os.getenv("HELPDESK_API_KEY", "")
@@ -37,10 +34,7 @@ class APIConfig:
     
     # Service Catalog URL
     service_catalog_url: str = field(
-        default_factory=lambda: os.getenv(
-            "SERVICE_CATALOG_URL",
-            "https://pastebin.com/raw/aYcaLzki"
-        )
+        default_factory=lambda: os.getenv("SERVICE_CATALOG_URL", "")
     )
     
     # Request timeout in seconds
@@ -106,12 +100,9 @@ class EmailConfig:
         default_factory=lambda: os.getenv("FROM_NAME", "Ticket Automation System")
     )
     
-    # Recipient for the report (as specified in the task)
+    # Recipient for the report
     recipient_email: str = field(
-        default_factory=lambda: os.getenv(
-            "RECIPIENT_EMAIL", 
-            "infosec@taxdome.com"
-        )
+        default_factory=lambda: os.getenv("RECIPIENT_EMAIL", "")
     )
     
     # Link to codebase for the email
@@ -173,7 +164,11 @@ class AppConfig:
         """
         errors = []
         
-        # Validate required API credentials
+        # Validate required API endpoints
+        if not self.api.helpdesk_webhook_url:
+            errors.append("HELPDESK_WEBHOOK_URL is required")
+        if not self.api.service_catalog_url:
+            errors.append("SERVICE_CATALOG_URL is required")
         if not self.api.helpdesk_api_key:
             errors.append("HELPDESK_API_KEY is required")
         
@@ -186,10 +181,10 @@ class AppConfig:
             errors.append("SMTP_USERNAME is required")
         if not self.email.smtp_password:
             errors.append("SMTP_PASSWORD (App Password) is required")
-        
         if not self.email.from_email:
             errors.append("FROM_EMAIL is required for sending emails")
-        
+        if not self.email.recipient_email:
+            errors.append("RECIPIENT_EMAIL is required")
         if not self.email.sender_name:
             errors.append("SENDER_NAME is required for email subject")
         

@@ -84,10 +84,16 @@ Your task is to analyze each helpdesk ticket and assign it to the most appropria
    - Cannot determine → Other/Uncategorized
 
 4. **Software & Licensing - Important Distinctions**:
-   - SaaS apps errors/outages (Jira, Salesforce, Zoom, Slack, etc.) → "SaaS Platform Access"
-   - Need to install software (VS Code, Docker, Python) → "Software Installation Issue"
+   - ANY SaaS platform issues (Jira, Salesforce, Zoom, Slack, etc.):
+     * Access requests ("need access to Salesforce") → "SaaS Platform Access"
+     * Errors/outages ("Jira is down", "Salesforce error") → "SaaS Platform Access"
+     * Login issues to SaaS apps → "SaaS Platform Access"
+   - Need to install LOCAL software (VS Code, Docker, Python) → "Software Installation Issue"
    - Need a license (Adobe, Tableau, Office) → "Request New Software License"
    - Other software problems → "Other Software Issue"
+   
+   **IMPORTANT**: SaaS platform requests go to "Software & Licensing", NOT "Access Management".
+   "Access Management" is for internal systems (AD, Okta, VPN credentials), not SaaS apps.
 
 5. **Hardware Support - Important Distinctions**:
    - Peripherals (mouse, keyboard, monitor, cables, headset) → "Peripheral Request (Mouse/Keyboard/Monitor)"
@@ -154,6 +160,20 @@ Example 7:
 - Type: "Other Hardware Request"
 - Confidence: 0.90
 - Reasoning: "Printer is hardware equipment. No specific printer category, so Other Hardware Request."
+
+Example 8:
+- Input: "Need access to Salesforce"
+- Category: "Software & Licensing"
+- Type: "SaaS Platform Access (Jira/Salesforce)"
+- Confidence: 0.95
+- Reasoning: "Salesforce is a SaaS platform. Access requests for SaaS apps go to Software & Licensing, not Access Management."
+
+Example 9:
+- Input: "Salesforce is showing an error"
+- Category: "Software & Licensing"
+- Type: "SaaS Platform Access (Jira/Salesforce)"
+- Confidence: 0.95
+- Reasoning: "Salesforce error is a SaaS platform issue. All SaaS-related requests belong to Software & Licensing."
 
 Now classify the ticket provided in the user message using the Service Catalog listed there."""
 
@@ -363,11 +383,22 @@ class TicketClassifier:
                     )
                     matched_category = correct_category
             else:
-                logger.warning(
-                    f"Request type '{request_type}' not found, using fallback for category '{matched_category}'"
-                )
-                # Use first type in category or fallback
-                matched_type = type_candidates[0] if type_candidates else self.FALLBACK_TYPE
+                # Type not found in any category
+                if type_candidates:
+                    # Use first available type in the matched category
+                    matched_type = type_candidates[0]
+                    logger.warning(
+                        f"Request type '{request_type}' not found in '{matched_category}', "
+                        f"using first available: '{matched_type}'"
+                    )
+                else:
+                    # Category has no types - fall back completely to maintain consistency
+                    # (FALLBACK_TYPE belongs to FALLBACK_CATEGORY, not to matched_category)
+                    logger.warning(
+                        f"Request type '{request_type}' not found and category '{matched_category}' "
+                        f"has no types, using complete fallback"
+                    )
+                    return self.FALLBACK_CATEGORY, self.FALLBACK_TYPE
         
         return matched_category, matched_type
     

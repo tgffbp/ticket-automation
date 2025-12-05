@@ -21,7 +21,7 @@ class TestAPIConfig:
         """Test default configuration values."""
         with patch.dict(os.environ, {}, clear=True):
             config = APIConfig()
-            assert "anler.tech" in config.helpdesk_webhook_url
+            assert config.helpdesk_webhook_url == ""
             assert config.request_timeout == 30
     
     def test_env_override(self):
@@ -36,13 +36,15 @@ class TestLLMConfig:
     
     def test_default_model(self):
         """Test default model is set."""
-        config = LLMConfig()
-        assert config.model == "gpt-4o-mini"
+        with patch.dict(os.environ, {}, clear=True):
+            config = LLMConfig()
+            assert config.model == "gpt-4o-mini"
     
     def test_default_temperature(self):
         """Test default temperature for deterministic output."""
-        config = LLMConfig()
-        assert config.temperature == 0.1
+        with patch.dict(os.environ, {}, clear=True):
+            config = LLMConfig()
+            assert config.temperature == 0.1
 
 
 class TestEmailConfig:
@@ -50,15 +52,17 @@ class TestEmailConfig:
     
     def test_default_smtp_settings(self):
         """Test default Gmail SMTP settings."""
-        config = EmailConfig()
-        assert config.smtp_host == "smtp.gmail.com"
-        assert config.smtp_port == 587
-        assert config.smtp_use_tls is True
+        with patch.dict(os.environ, {}, clear=True):
+            config = EmailConfig()
+            assert config.smtp_host == "smtp.gmail.com"
+            assert config.smtp_port == 587
+            assert config.smtp_use_tls is True
     
-    def test_default_recipient(self):
-        """Test default recipient from task."""
-        config = EmailConfig()
-        assert config.recipient_email == "wordlessframes@gmail.com"
+    def test_default_recipient_empty(self):
+        """Test default recipient is empty (must be set via env)."""
+        with patch.dict(os.environ, {}, clear=True):
+            config = EmailConfig()
+            assert config.recipient_email == ""
 
 
 class TestOutputConfig:
@@ -107,12 +111,17 @@ class TestAppConfig:
     def test_validate_all_valid(self):
         """Test validation passes with all required fields."""
         config = AppConfig(
-            api=APIConfig(helpdesk_api_key="test"),
+            api=APIConfig(
+                helpdesk_webhook_url="https://example.com/webhook",
+                helpdesk_api_key="test",
+                service_catalog_url="https://example.com/catalog",
+            ),
             llm=LLMConfig(api_key="sk-test"),
             email=EmailConfig(
                 smtp_username="test@gmail.com",
                 smtp_password="app-password",
                 from_email="test@gmail.com",
+                recipient_email="recipient@example.com",
                 sender_name="Test User",
             ),
         )

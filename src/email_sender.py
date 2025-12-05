@@ -84,8 +84,8 @@ class SMTPEmailSender:
                 for file_path in attachments:
                     self._attach_file(msg, file_path)
             
-            # Send via SMTP with TLS
-            with smtplib.SMTP(self._config.smtp_host, self._config.smtp_port) as server:
+            # Send via SMTP with TLS (30 second timeout)
+            with smtplib.SMTP(self._config.smtp_host, self._config.smtp_port, timeout=30) as server:
                 if self._config.smtp_use_tls:
                     server.starttls()
                 

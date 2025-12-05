@@ -118,6 +118,10 @@ def run_pipeline(
     else:
         # Validate only non-email config
         errors = []
+        if not config.api.helpdesk_webhook_url:
+            errors.append("HELPDESK_WEBHOOK_URL is required")
+        if not config.api.service_catalog_url:
+            errors.append("SERVICE_CATALOG_URL is required")
         if not config.api.helpdesk_api_key:
             errors.append("HELPDESK_API_KEY is required")
         if not config.llm.api_key:

@@ -98,7 +98,6 @@ class HelpdeskClient:
             response.raise_for_status()
             
             data = response.json()
-            logger.debug(f"Raw API response: {data}")
             
             # Parse response
             helpdesk_response = HelpdeskResponse(**data)
@@ -113,10 +112,6 @@ class HelpdeskClient:
             
             requests = helpdesk_response.get_requests()
             logger.info(f"Successfully fetched {len(requests)} helpdesk requests")
-            
-            # Log request IDs for audit trail
-            request_ids = [r.id for r in requests]
-            logger.debug(f"Request IDs: {request_ids}")
             
             return requests
             
